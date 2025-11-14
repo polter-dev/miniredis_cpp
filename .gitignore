@@ -1,3 +1,4 @@
 a.out
 redis/
-.dSYM
+client.dSYM
+server.dSYM
