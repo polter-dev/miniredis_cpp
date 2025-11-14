@@ -1,2 +1,3 @@
 a.out
-./redis/
+redis/
+.dSYM
