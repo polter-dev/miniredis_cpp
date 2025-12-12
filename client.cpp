@@ -1,6 +1,7 @@
 //standard import
 #include <iostream>
 #include <stdlib.h>
+#include <string.h>
 using namespace std;
 
 //import for to grab socket / ip includes necessaryq
@@ -41,14 +42,42 @@ void connectSock(int fd, struct sockaddr_in *s){
     }
 }
 
+int sendText(char *word, int fd){
+    int val = send(fd, word, strlen(word), 0);
+    if (val == -1){
+        printf("There was an issue sending!\n");
+        exit(errno);
+    }
+    return val;
+}
 int main(){
     int fd = grabSocket();
 
     struct sockaddr_in clientSock1;
-    clientSock1;
     initSockAddr(&clientSock1);
 
     connectSock(fd, &clientSock1);
+
+    char *temp = "hello";
+    int sent = sendText(temp, fd);
+
+
+    char *buffer = (char*)malloc(sizeof(char) * 1024 + 1);
+    int received = recv(fd, buffer, 1024, 0);
+    if (received == -1){
+        printf("Issue receiving size of text in bytes\n");
+        exit(-1);
+    } else if (received == 0){
+        printf("TCP connection was closed on server side before processing \n");
+        exit(0);
+    }
+    buffer[received] = '\0';
+
+    cout << buffer << endl;
+    free(buffer);
+
+    
+    close(fd);
 
     return 0;
 }
