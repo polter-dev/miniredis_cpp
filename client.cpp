@@ -42,7 +42,7 @@ void connectSock(int fd, struct sockaddr_in *s){
     }
 }
 
-int sendText(char *word, int fd){
+int sendText(const char *word, int fd){
     int val = send(fd, word, strlen(word), 0);
     if (val == -1){
         printf("There was an issue sending!\n");
@@ -50,6 +50,7 @@ int sendText(char *word, int fd){
     }
     return val;
 }
+
 int main(){
     int fd = grabSocket();
 
@@ -58,7 +59,7 @@ int main(){
 
     connectSock(fd, &clientSock1);
 
-    char *temp = "hello";
+    const char *temp = "hello";
     int sent = sendText(temp, fd);
 
 
@@ -76,7 +77,7 @@ int main(){
     cout << buffer << endl;
     free(buffer);
 
-    
+
     close(fd);
 
     return 0;
