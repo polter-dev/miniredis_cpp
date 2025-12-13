@@ -50,6 +50,14 @@ int sendText(const char *word, int fd){
     }
     return val;
 }
+
+char *setWord(char input[1024]){
+    int len = strlen(input);
+    char *ret = (char*)malloc(sizeof(char) * len+1);
+    strcpy(ret, input);
+    return ret;
+}
+
 int main(){
     int fd = grabSocket();
 
@@ -58,9 +66,13 @@ int main(){
 
     connectSock(fd, &clientSock1);
 
-    const char *temp = "hello";
+    char userBuffer[1024];
+    cout << "Input a command\n" << endl;
+    fgets(userBuffer, 1024, stdin);
+    
+    char *temp = setWord(userBuffer);
     int sent = sendText(temp, fd);
-
+    free(temp);
 
     char *buffer = (char*)malloc(sizeof(char) * 1024 + 1);
     int received = recv(fd, buffer, 1024, 0);
