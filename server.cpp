@@ -62,28 +62,32 @@ int main(){
     struct sockaddr_in serverSocket; initServerSocket(&serverSocket);
     bindSock(fd, &serverSocket);
     listenSocket(fd);
-    int newFd = acceptSocket(fd, &serverSocket);
+
+    while (1){
+        int newFd = acceptSocket(fd, &serverSocket);
+        int size = 1024;
+        char buffer[size];
+        int totalSize = recv(newFd, buffer, size, 0);
+        if (totalSize == -1){
+            cout << "Could not get total size\n" << endl;    
+            break;
+        } else if (totalSize==0){//client closed connection
+            cout << "Client has closed connection\n" << endl;
+            close(newFd);
+        } else {
     
-    int size = 1024;
-    char buffer[size];
-    int totalSize = recv(newFd, buffer, size, 0);
-    if (totalSize == -1){
-        cout << "Could not get total size\n" << endl;    
-        exit(errno);
-    }
-    
-    buffer[totalSize] = '\0';
+        buffer[totalSize] = '\0';
 
-    cout << buffer << endl;
-
-    int sent = send(newFd, buffer, totalSize, 0);
-    if (sent == -1){
-        cout << "Could not send\n" << endl;
-        exit(errno);
+        cout << buffer << endl;
+        int sent = send(newFd, buffer, totalSize, 0);
+        if (sent == -1){
+            cout << "Could not send\n" << endl;
+            break;
+        }
+        close(newFd);
+        }
     }
 
-    close(newFd);
     close(fd);
-
     return 0;
 }
