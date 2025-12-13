@@ -57,6 +57,15 @@ int acceptSocket(int fd, struct sockaddr_in *clientAddr){
     return res;
 }
 
+int sendMessage(int fd, const char *buffer, int size){
+    int sent = send(fd, buffer, size, 0);
+    if (sent == -1){
+        cout << "Could not send!\n" << endl;
+        return 0;
+    }
+    return 1;
+}
+
 int main(){
     int fd = grabSocket();
     struct sockaddr_in serverSocket; initServerSocket(&serverSocket);
@@ -77,13 +86,21 @@ int main(){
         } else {
     
         buffer[totalSize] = '\0';
-
         cout << buffer << endl;
-        int sent = send(newFd, buffer, totalSize, 0);
-        if (sent == -1){
-            cout << "Could not send\n" << endl;
-            break;
+        char ping[] = "PING\n";
+        if (!strcmp(buffer, ping)){
+            if (!sendMessage(newFd, "PONG", strlen("PONG")))
+                break;
+        } else if (!(strncmp(buffer, "ECHO", 4))){
+            char *echo = buffer+5;
+            if(!sendMessage(newFd, echo, strlen(echo))){
+                break;
+            }
+        } else {
+            char err[] = "ERR unknown command";
+            sendMessage(newFd, err, strlen(err));
         }
+        
         close(newFd);
         }
     }
