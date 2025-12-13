@@ -39,10 +39,51 @@ void bindSock(int fd, struct sockaddr_in *serverSocket){
     }
 }
 
+void listenSocket(int fd){
+    int val = listen(fd, 1);
+    if (val == -1){
+        cout << "Something went wrong with listening\n" << endl;
+        exit(errno);
+    }
+}
+
+int acceptSocket(int fd, struct sockaddr_in *clientAddr){
+    socklen_t num =sizeof(*clientAddr);
+    int res = accept(fd, (struct sockaddr *)clientAddr, &num);
+    if (res == -1){
+        cout << "Connection could not be accepting through server\n" << endl;
+        exit(errno);
+    }
+    return res;
+}
+
 int main(){
     int fd = grabSocket();
     struct sockaddr_in serverSocket; initServerSocket(&serverSocket);
+    bindSock(fd, &serverSocket);
+    listenSocket(fd);
+    int newFd = acceptSocket(fd, &serverSocket);
+    
+    int size = 1024;
+    char buffer[size];
+    int totalSize = recv(newFd, buffer, size, 0);
+    if (totalSize == -1){
+        cout << "Could not get total size\n" << endl;    
+        exit(errno);
+    }
+    
+    buffer[totalSize] = '\0';
 
+    cout << buffer << endl;
+
+    int sent = send(newFd, buffer, totalSize, 0);
+    if (sent == -1){
+        cout << "Could not send\n" << endl;
+        exit(errno);
+    }
+
+    close(newFd);
+    close(fd);
 
     return 0;
 }

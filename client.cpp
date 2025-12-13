@@ -50,7 +50,6 @@ int sendText(const char *word, int fd){
     }
     return val;
 }
-
 int main(){
     int fd = grabSocket();
 
