@@ -58,20 +58,16 @@ char *setWord(char input[1024]){
     return ret;
 }
 
-int main(){
-    int fd = grabSocket();
-
-    struct sockaddr_in clientSock1;
-    initSockAddr(&clientSock1);
-
-    connectSock(fd, &clientSock1);
-
+int clientRun(int fd){
     char userBuffer[1024];
-    cout << "Input a command\n" << endl;
     fgets(userBuffer, 1024, stdin);
     
     char *temp = setWord(userBuffer);
     int sent = sendText(temp, fd);
+    if (!strncmp(temp, "QUIT", 4)){
+        free(temp);
+        return 0;
+    }
     free(temp);
 
     char *buffer = (char*)malloc(sizeof(char) * 1024 + 1);
@@ -83,13 +79,29 @@ int main(){
         printf("TCP connection was closed on server side before processing \n");
         exit(0);
     }
+    
     buffer[received] = '\0';
-
     cout << buffer << endl;
     free(buffer);
 
+    return 1;
+}
 
+int main(){
+    int fd = grabSocket();
+
+    struct sockaddr_in clientSock1;
+    initSockAddr(&clientSock1);
+
+    connectSock(fd, &clientSock1);
+
+    int x = 1;
+    cout << "Input commands\n" << endl;
+
+    while(x){
+        x = clientRun(fd);
+    }
+    
     close(fd);
-
     return 0;
 }
