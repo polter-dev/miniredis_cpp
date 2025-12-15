@@ -67,44 +67,49 @@ int sendMessage(int fd, const char *buffer, int size){
     return 1;
 }
 
+int checkSize(int size){
+    if (size == -1){
+        cout << "Could not get total size\n" << endl;
+        return 0;
+    } else if (size == 0){
+        cout << "Client has disconnected!\n" << endl;    
+        return 0;
+    }
+    return 1;
+}
+
 int runCommands(int fd){
     int x = 1;
 
     while(x){
         int size = 1024;
         char buffer[size];
+
         int totalSize = recv(fd, buffer, size, 0);
-        if (totalSize == -1){
-            cout << "Could not get total size\n" << endl;    
-            x = 0;
-        } else if (totalSize==0){//client closed connection
-            cout << "Client has closed connection\n" << endl;
+        x = checkSize(totalSize);
+        if (!x) break;
+
+        buffer[totalSize] = '\0';
+        cout << buffer << endl;
+
+        if (totalSize > 0 && buffer[totalSize - 1] == '\n') {
+            buffer[totalSize - 1] = '\0';
+            totalSize--;
+        }
+
+
+        if (!strcmp(buffer, "PING")){
+            x = sendMessage(fd, "PONG", strlen("PONG"));
+        } else if (!strncmp(buffer, "ECHO" , 4)){
+            char *temp = buffer+5;
+            x = sendMessage(fd,temp, strlen(temp));
+        } else if (!strncmp(buffer, "QUIT", 4)){
             x = 0;
         } else {
-            buffer[totalSize] = '\0';
-            cout << buffer << endl;
-
-            if (totalSize > 0 && buffer[totalSize - 1] == '\n') {
-                buffer[totalSize - 1] = '\0';
-                totalSize--;
-            }
-
-            if (!strcmp(buffer, "PING")){
-                if (!sendMessage(fd, "PONG", strlen("PONG")))
-                    x = 0;
-            } else if (!(strncmp(buffer, "ECHO", 4))){
-                char *echo = buffer+5;
-                if(!sendMessage(fd, echo, strlen(echo))){
-                    x = 0;
-                }
-            } else if(!strncmp(buffer, "QUIT", 4)){
-                x = 0;
-            } else {
-                char err[] = "ERR unknown command";
-                sendMessage(fd, err, strlen(err));
+            char err[] = "ERR unknown command";
+            sendMessage(fd, err, strlen(err));
             }
         }
-    }
     close(fd);
     return 1;
 }
