@@ -68,39 +68,44 @@ int sendMessage(int fd, const char *buffer, int size){
 }
 
 int runCommands(int fd){
+    int x = 1;
+
+    while(x){
         int size = 1024;
         char buffer[size];
         int totalSize = recv(fd, buffer, size, 0);
         if (totalSize == -1){
             cout << "Could not get total size\n" << endl;    
-            return 0;
+            x = 0;
         } else if (totalSize==0){//client closed connection
             cout << "Client has closed connection\n" << endl;
-            close(fd);
+            x = 0;
         } else {
-    
-        buffer[totalSize] = '\0';
-        cout << buffer << endl;
+            buffer[totalSize] = '\0';
+            cout << buffer << endl;
 
-        if (totalSize > 0 && buffer[totalSize - 1] == '\n') {
-            buffer[totalSize - 1] = '\0';
-            totalSize--;
-        }
-
-        if (!strcmp(buffer, "PING")){
-            if (!sendMessage(fd, "PONG", strlen("PONG")))
-                return 0;
-        } else if (!(strncmp(buffer, "ECHO", 4))){
-            char *echo = buffer+5;
-            if(!sendMessage(fd, echo, strlen(echo))){
-                return 0;
+            if (totalSize > 0 && buffer[totalSize - 1] == '\n') {
+                buffer[totalSize - 1] = '\0';
+                totalSize--;
             }
-        } else {
-            char err[] = "ERR unknown command";
-            sendMessage(fd, err, strlen(err));
+
+            if (!strcmp(buffer, "PING")){
+                if (!sendMessage(fd, "PONG", strlen("PONG")))
+                    x = 0;
+            } else if (!(strncmp(buffer, "ECHO", 4))){
+                char *echo = buffer+5;
+                if(!sendMessage(fd, echo, strlen(echo))){
+                    x = 0;
+                }
+            } else if(!strncmp(buffer, "QUIT", 4)){
+                x = 0;
+            } else {
+                char err[] = "ERR unknown command";
+                sendMessage(fd, err, strlen(err));
+            }
         }
-        close(fd);
-        }
+    }
+    close(fd);
     return 1;
 }
 
