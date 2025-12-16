@@ -13,9 +13,11 @@ using namespace std;
 
 //data structure import && creation
 #include <unordered_map>
+#include <mutex>
 
 //create a globally accessed map (not thread based)for all clients to access
 std::unordered_map<std::string, std::string> store;
+std::mutex storeMutex;
 
 /*
 This program is fully developed and created by: Marcus Ruth 
@@ -85,25 +87,34 @@ int checkSize(int size){
 }
 
 void storeSET(char *access){
+    storeMutex.lock();
     char *key, *value;
 
     key = strtok(access, " ");
     value = strtok(NULL, " ");
     
     store[key] = value;
+    storeMutex.unlock();
 }
 
+
+/*
+fix this down the line to get all the data, then unlock to do operations
+to imrove optimization potentially
+*/
 void grabGET(char *access, int fd){
-    if (store.find(access) == store.end())
+    storeMutex.lock();
+    if (store.find(access) == store.end()){
         sendMessage(fd, "NOT FOUND", strlen("NOT FOUND"));
-    else {
+        storeMutex.unlock();        
+    } else {
 //c++ strings are different than C, so we need to do a little manipulating for 
 // the function calls below
         string buffer = store[access];
         int len = buffer.length();
+        storeMutex.unlock();
         sendMessage(fd, buffer.c_str(), len);
     }
-
 }
 
 int runCommands(int fd){
