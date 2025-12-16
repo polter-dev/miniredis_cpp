@@ -11,6 +11,12 @@ using namespace std;
 #include <unistd.h>
 #include <arpa/inet.h>
 
+//data structure import && creation
+#include <unordered_map>
+
+//create a globally accessed map (not thread based)for all clients to access
+std::unordered_map<std::string, std::string> store;
+
 /*
 This program is fully developed and created by: Marcus Ruth 
 https://www.github.com/polter-dev/miniredis_cpp
@@ -78,6 +84,28 @@ int checkSize(int size){
     return 1;
 }
 
+void storeSET(char *access){
+    char *key, *value;
+
+    key = strtok(access, " ");
+    value = strtok(NULL, " ");
+    
+    store[key] = value;
+}
+
+void grabGET(char *access, int fd){
+    if (store.find(access) == store.end())
+        sendMessage(fd, "NOT FOUND", strlen("NOT FOUND"));
+    else {
+//c++ strings are different than C, so we need to do a little manipulating for 
+// the function calls below
+        string buffer = store[access];
+        int len = buffer.length();
+        sendMessage(fd, buffer.c_str(), len);
+    }
+
+}
+
 int runCommands(int fd){
     int x = 1;
 
@@ -105,6 +133,13 @@ int runCommands(int fd){
             x = sendMessage(fd,temp, strlen(temp));
         } else if (!strncmp(buffer, "QUIT", 4)){
             x = 0;
+        }else if(!strncmp(buffer, "SET", 3)) {
+            //handle logic for SET <key> <value>
+            storeSET(buffer + 4);
+            x = sendMessage(fd, "OK", strlen("OK"));
+        } else if (!strncmp(buffer, "GET", 3)){
+            //handle logic for GET <key>
+            grabGET(buffer + 4, fd);
         } else {
             char err[] = "ERR unknown command";
             sendMessage(fd, err, strlen(err));
