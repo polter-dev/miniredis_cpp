@@ -2,7 +2,8 @@
 #include <iostream>
 #include <stdlib.h>
 #include <string.h>
-#include<thread>
+#include <poll.h>
+#include <vector>
 using namespace std;
 
 //import for to grab socket / ip includes necessaryq
@@ -32,6 +33,14 @@ int grabSocket(){
         exit(errno);
     }
     return fd;
+}
+
+struct pollfd initPoll(int fd){
+    struct pollfd s;
+    s.fd = fd;
+    s.events = POLLIN;
+    s.revents = 0;
+    return s;
 }
 
 void initServerSocket(struct sockaddr_in *s1){
@@ -97,7 +106,6 @@ void storeSET(char *access){
     storeMutex.unlock();
 }
 
-
 /*
 fix this down the line to get all the data, then unlock to do operations
 to imrove optimization potentially
@@ -119,14 +127,12 @@ void grabGET(char *access, int fd){
 
 int runCommands(int fd){
     int x = 1;
-
-    while(x){
         int size = 1024;
         char buffer[size];
 
         int totalSize = recv(fd, buffer, size, 0);
         x = checkSize(totalSize);
-        if (!x) break;
+        if (!x) return 0;
 
         buffer[totalSize] = '\0';
         cout << buffer << endl;
@@ -155,11 +161,8 @@ int runCommands(int fd){
             char err[] = "ERR unknown command";
             sendMessage(fd, err, strlen(err));
             }
-        }
-    close(fd);
-    return 1;
+    return x;
 }
-
 
 int main(){
     int fd = grabSocket();
@@ -167,10 +170,28 @@ int main(){
     bindSock(fd, &serverSocket);
     listenSocket(fd);
 
-    while (1){
-        int newFd = acceptSocket(fd, &serverSocket);
-        std::thread t(runCommands, newFd);  
-        t.detach();
+
+    //creates a dynamic system of fd
+    std::vector<pollfd> fdArr;
+    fdArr.push_back(initPoll(fd));
+    
+    while(1){
+        poll(fdArr.data(), fdArr.size(), -1);
+        for (int i = 0; i < fdArr.size(); i++) {
+            if(fdArr[i].revents){
+                if (!i){
+                    int newFD = acceptSocket(fd, &serverSocket);
+                    fdArr.push_back(initPoll(newFD));
+                } else {
+                    int val = runCommands(fdArr[i].fd);
+                    if (!val || val == -1){
+                        close(fdArr[i].fd);
+                        fdArr.erase(fdArr.begin() + i);
+                        i--;
+                    }
+                }
+            }
+        }
     }
 
     close(fd);
