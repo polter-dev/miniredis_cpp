@@ -164,36 +164,40 @@ int runCommands(int fd){
     return x;
 }
 
-int main(){
-    int fd = grabSocket();
-    struct sockaddr_in serverSocket; initServerSocket(&serverSocket);
-    bindSock(fd, &serverSocket);
-    listenSocket(fd);
-
-
-    //creates a dynamic system of fd
-    std::vector<pollfd> fdArr;
-    fdArr.push_back(initPoll(fd));
-    
-    while(1){
-        poll(fdArr.data(), fdArr.size(), -1);
-        for (int i = 0; i < fdArr.size(); i++) {
-            if(fdArr[i].revents){
-                if (!i){
-                    int newFD = acceptSocket(fd, &serverSocket);
-                    fdArr.push_back(initPoll(newFD));
-                } else {
-                    int val = runCommands(fdArr[i].fd);
-                    if (!val || val == -1){
-                        close(fdArr[i].fd);
-                        fdArr.erase(fdArr.begin() + i);
-                        i--;
+    void runPolling(std::vector<pollfd> &fdArr, int fd, sockaddr_in &serverSocket){
+        while(1){
+            poll(fdArr.data(), fdArr.size(), -1);
+            for (int i = 0; i < fdArr.size(); i++) {
+                if(fdArr[i].revents){
+                    if (!i){
+                        int newFD = acceptSocket(fd, &serverSocket);
+                        fdArr.push_back(initPoll(newFD));
+                    } else {
+                        int val = runCommands(fdArr[i].fd);
+                        if (!val || val == -1){
+                            close(fdArr[i].fd);
+                            fdArr.erase(fdArr.begin() + i);
+                            i--;
+                        }
                     }
                 }
             }
         }
     }
 
-    close(fd);
-    return 0;
-}
+    int main(){
+        int fd = grabSocket();
+        struct sockaddr_in serverSocket; initServerSocket(&serverSocket);
+        bindSock(fd, &serverSocket);
+        listenSocket(fd);
+
+
+        //creates a dynamic system of fd
+        std::vector<pollfd> fdArr;
+        fdArr.push_back(initPoll(fd));
+        
+        runPolling(fdArr, fd, serverSocket);
+
+        close(fd);
+        return 0;
+    }
