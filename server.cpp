@@ -110,6 +110,40 @@ void storeSET(char *access){
     storeMutex.unlock();
 }
 
+int simpleStringResponse(int fd, const char *word){
+    int len = strlen(word);
+    int totalSize = len + 4;// \r\n and +1 for the null term
+    char buffer[totalSize]; 
+
+        int i;
+    for (i = 0; i < len; i++)
+        buffer[i + 1] = word[i];
+        
+    buffer[0] = '+';
+    buffer[totalSize - 3] = '\r';
+    buffer[totalSize - 2] = '\n';
+    buffer[totalSize - 1] = '\0';
+
+    return sendMessage(fd, buffer, totalSize-1);
+}
+
+int sendBulkString(int fd, const char *word){
+    int len = strlen(word);
+    string response = "$" + std::to_string(len) + "\r\n" + word + "\r\n";
+    return sendMessage(fd, response.c_str(), response.length());
+}
+
+int sendNull(int fd){
+    string response = "_\r\n";
+    return sendMessage(fd, response.c_str(), response.length());
+}
+
+int sendSimpleError(int fd, const char *error){
+    //-Error message\r\n -> different message for each 
+    string response = string("-") + error + "\r\n";
+    return sendMessage(fd, response.c_str(), response.length());
+}
+
 void grabGET(char *access, int fd) {
     if (!access) return;
 
@@ -145,22 +179,22 @@ int runCommands(int fd){
         }
 
         if (!strcmp(buffer, "PING")){
-            x = sendMessage(fd, "PONG", strlen("PONG"));
+            x = simpleStringResponse(fd, "PONG");
         } else if (!strncmp(buffer, "ECHO" , 4) && (buffer[4] == ' ')){
             char *temp = buffer+5;
-            x = sendMessage(fd,temp, strlen(temp));
+            x = sendBulkString(fd, temp);
         } else if (!strncmp(buffer, "QUIT", 4)){
             x = 0;
         }else if(!strncmp(buffer, "SET", 3) && (buffer[3] == ' ')) {
             //handle logic for SET <key> <value>
             storeSET(buffer + 4);
-            x = sendMessage(fd, "OK", strlen("OK"));
+            x = simpleStringResponse(fd, "OK");
         } else if (!strncmp(buffer, "GET", 3) && (buffer[3] == ' ')){
             //handle logic for GET <key>
             grabGET(buffer + 4, fd);
         } else {
             char err[] = "ERR unknown command";
-            sendMessage(fd, err, strlen(err));
+            x = sendSimpleError(fd, err);
         }
 
     return x;
@@ -202,4 +236,4 @@ int runCommands(int fd){
 
         close(fd);
         return 0;
-    }
+}
