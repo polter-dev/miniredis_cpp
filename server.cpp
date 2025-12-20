@@ -96,32 +96,34 @@ int checkSize(int size){
 }
 
 void storeSET(char *access){
-    storeMutex.lock();
+    if (!access) return;
+    
     char *key, *value;
 
     key = strtok(access, " ");
     value = strtok(NULL, " ");
-    
+
+    if (!key || !value) return;
+
+    storeMutex.lock();
     store[key] = value;
     storeMutex.unlock();
 }
 
-/*
-fix this down the line to get all the data, then unlock to do operations
-to imrove optimization potentially
-*/
-void grabGET(char *access, int fd){
+void grabGET(char *access, int fd) {
+    if (!access) return;
+
     storeMutex.lock();
-    if (store.find(access) == store.end()){
-        sendMessage(fd, "NOT FOUND", strlen("NOT FOUND"));
+
+    if(store.find(access) == store.end()){
         storeMutex.unlock();        
-    } else {
-//c++ strings are different than C, so we need to do a little manipulating for 
-// the function calls below
+        sendMessage(fd, "NOT FOUND", strlen("NOT FOUND"));
+        return;
+    } else { //c++ strings are different than C, so we need to do a little manipulating for 
+            // the function calls below
         string buffer = store[access];
-        int len = buffer.length();
         storeMutex.unlock();
-        sendMessage(fd, buffer.c_str(), len);
+        sendMessage(fd, buffer.c_str(), buffer.length());
     }
 }
 
@@ -142,25 +144,25 @@ int runCommands(int fd){
             totalSize--;
         }
 
-
         if (!strcmp(buffer, "PING")){
             x = sendMessage(fd, "PONG", strlen("PONG"));
-        } else if (!strncmp(buffer, "ECHO" , 4)){
+        } else if (!strncmp(buffer, "ECHO" , 4) && (buffer[4] == ' ')){
             char *temp = buffer+5;
             x = sendMessage(fd,temp, strlen(temp));
         } else if (!strncmp(buffer, "QUIT", 4)){
             x = 0;
-        }else if(!strncmp(buffer, "SET", 3)) {
+        }else if(!strncmp(buffer, "SET", 3) && (buffer[3] == ' ')) {
             //handle logic for SET <key> <value>
             storeSET(buffer + 4);
             x = sendMessage(fd, "OK", strlen("OK"));
-        } else if (!strncmp(buffer, "GET", 3)){
+        } else if (!strncmp(buffer, "GET", 3) && (buffer[3] == ' ')){
             //handle logic for GET <key>
             grabGET(buffer + 4, fd);
         } else {
             char err[] = "ERR unknown command";
             sendMessage(fd, err, strlen(err));
-            }
+        }
+
     return x;
 }
 
