@@ -10,6 +10,8 @@ using namespace std;
 #include <unistd.h>
 #include <arpa/inet.h>
 
+#include <vector>
+
 /*
 This program is fully developed and created by: Marcus Ruth 
 https://www.github.com/polter-dev/miniredis_cpp
@@ -53,17 +55,50 @@ int sendText(const char *word, int fd){
 
 char *setWord(char input[1024]){
     int len = strlen(input);
-    char *ret = (char*)malloc(sizeof(char) * len+1);
+    char *ret = (char*)malloc(sizeof(char) * (len+1));
     strcpy(ret, input);
     return ret;
 }
 
+string buildRESPEncoding(std::vector<string> &arr, int count){
+
+    string start = "*" + std::to_string(count) + "\r\n";
+    
+    for (int i = 0; i < count; i++){
+        string temp = "$" + std::to_string(arr[i].length()) + "\r\n" + arr[i] + "\r\n";
+        start = start.append(temp);
+    }
+    
+    return start;
+}
+
+int encodeSendCmd(int fd, char *word){
+    if (!word) return 0;
+
+    std::vector<string> totalWords;
+    
+    int count = 0;
+    char *poach = strtok(word, " ");
+
+    while (poach){
+        totalWords.push_back(poach);
+        count++;
+        poach = strtok(NULL, " ");
+    }
+
+    string build = buildRESPEncoding(totalWords, count);
+
+    return sendText(build.c_str(), fd);
+}   
+
 int clientRun(int fd){
     char userBuffer[1024];
     fgets(userBuffer, 1024, stdin);
-    
+
+    userBuffer[strcspn(userBuffer, "\n")] = '\0';
+
     char *temp = setWord(userBuffer);
-    int sent = sendText(temp, fd);
+    int sent = encodeSendCmd(fd, temp);
     if (!strncmp(temp, "QUIT", 4)){
         free(temp);
         return 0;
