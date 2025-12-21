@@ -151,13 +151,14 @@ void grabGET(char *access, int fd) {
 
     if(store.find(access) == store.end()){
         storeMutex.unlock();        
-        sendMessage(fd, "NOT FOUND", strlen("NOT FOUND"));
+        char word[] = "NOT FOUND";
+        sendNull(fd);
         return;
     } else { //c++ strings are different than C, so we need to do a little manipulating for 
             // the function calls below
         string buffer = store[access];
         storeMutex.unlock();
-        sendMessage(fd, buffer.c_str(), buffer.length());
+        sendBulkString(fd, buffer.c_str());
     }
 }
 
