@@ -5,3 +5,4 @@ server.dSYM
 client
 server
 list.txt
+resp_decoding_guide.md
