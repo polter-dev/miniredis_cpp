@@ -95,18 +95,9 @@ int checkSize(int size){
     return 1;
 }
 
-void storeSET(char *access){
-    if (!access) return;
-    
-    char *key, *value;
-
-    key = strtok(access, " ");
-    value = strtok(NULL, " ");
-
-    if (!key || !value) return;
-
+void storeSET(string wordOne, string wordTwo){
     storeMutex.lock();
-    store[key] = value;
+    store[wordOne] = wordTwo;
     storeMutex.unlock();
 }
 
@@ -144,59 +135,72 @@ int sendSimpleError(int fd, const char *error){
     return sendMessage(fd, response.c_str(), response.length());
 }
 
-void grabGET(char *access, int fd) {
-    if (!access) return;
-
+void grabGET(string access, int fd) {
     storeMutex.lock();
-
-    if(store.find(access) == store.end()){
-        storeMutex.unlock();        
-        char word[] = "NOT FOUND";
+    if (store.find(access) == store.end()){
+        storeMutex.unlock();
         sendNull(fd);
         return;
-    } else { //c++ strings are different than C, so we need to do a little manipulating for 
-            // the function calls below
-        string buffer = store[access];
-        storeMutex.unlock();
-        sendBulkString(fd, buffer.c_str());
+    } else{
+    string send = store[access];
+    storeMutex.unlock();
+    sendBulkString(fd, send.c_str());
     }
+}
+
+std::vector <string> decodeClient(char* encoded){
+    std::vector<string> incoming;
+    int posi = 0;
+
+    char *finder = strchr(encoded + posi, '\r');
+    string temp(encoded + 1, finder);
+    int size = stoi(temp);
+
+    posi = (finder-encoded) + 2;
+
+    for (int i = 0; i < size; i++){
+        finder = strchr(encoded + posi, '\r');
+        string temp(encoded + posi + 1, finder);
+        int wordLen = stoi(temp);
+
+        posi = (finder - encoded) + 2;
+        string word(encoded + posi, wordLen);
+
+        posi = posi + wordLen + 2;
+        incoming.push_back(word);
+    }
+    return incoming;
 }
 
 int runCommands(int fd){
     int x = 1;
-        int size = 1024;
-        char buffer[size];
+    int size = 1024;
+    char buffer[size];
 
-        int totalSize = recv(fd, buffer, size, 0);
-        x = checkSize(totalSize);
-        if (!x) return 0;
+    int totalSize = recv(fd, buffer, size, 0);
+    x = checkSize(totalSize);
+    if (!x) return 0;
 
-        buffer[totalSize] = '\0';
-        cout << buffer << endl;
+    buffer[totalSize] = '\0';
+    cout << buffer << endl;
 
-        if (totalSize > 0 && buffer[totalSize - 1] == '\n') {
-            buffer[totalSize - 1] = '\0';
-            totalSize--;
-        }
+    std::vector<string> words = decodeClient(buffer);
+    if (words.empty()) return sendSimpleError(fd, "ERR empty command");
 
-        if (!strcmp(buffer, "PING")){
-            x = simpleStringResponse(fd, "PONG");
-        } else if (!strncmp(buffer, "ECHO" , 4) && (buffer[4] == ' ')){
-            char *temp = buffer+5;
-            x = sendBulkString(fd, temp);
-        } else if (!strncmp(buffer, "QUIT", 4)){
-            x = 0;
-        }else if(!strncmp(buffer, "SET", 3) && (buffer[3] == ' ')) {
-            //handle logic for SET <key> <value>
-            storeSET(buffer + 4);
-            x = simpleStringResponse(fd, "OK");
-        } else if (!strncmp(buffer, "GET", 3) && (buffer[3] == ' ')){
-            //handle logic for GET <key>
-            grabGET(buffer + 4, fd);
-        } else {
-            char err[] = "ERR unknown command";
-            x = sendSimpleError(fd, err);
-        }
+    if (words[0] == "PING"){
+        x = simpleStringResponse(fd, "PONG");
+    } else if (words[0] == "ECHO"){
+        x = sendBulkString(fd, words[1].c_str());
+    } else if (words[0] == "QUIT"){
+        x = 0;
+    } else if (words[0] == "SET"){
+        storeSET(words[1], words[2]);
+        x = simpleStringResponse(fd, "OK");
+    } else if (words[0] == "GET"){
+        grabGET(words[1], fd);
+    } else {
+        x = sendSimpleError(fd, "ERR unknown command");
+    }
 
     return x;
 }
