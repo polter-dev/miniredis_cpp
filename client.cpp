@@ -91,6 +91,35 @@ int encodeSendCmd(int fd, char *word){
     return sendText(build.c_str(), fd);
 }   
 
+void extractSimpleString(char *response){
+    char *finder = strchr(response, '\r');
+    string word(response + 1, finder);
+    cout << word << endl;
+}
+
+void extractBulkString(char *response){
+    char *finder = strchr(response, '\r');
+    string num(response + 1, finder);
+    int size = stoi(num);
+    std::string word(finder + 2, size);
+
+    cout << word << endl;
+}
+
+void decodeResponse(char* response){
+    char type = response[0];
+
+    if (type == '+'){
+        extractSimpleString(response);
+    } else if (type == '$'){
+        extractBulkString(response);
+    } else if (type == '_'){
+        cout << "(nil)" << endl;
+    } else if (type == '-'){
+        extractSimpleString(response);
+    }
+}
+
 int clientRun(int fd){
     char userBuffer[1024];
     fgets(userBuffer, 1024, stdin);
@@ -115,8 +144,8 @@ int clientRun(int fd){
         exit(0);
     }
     
-    buffer[received] = '\0';
-    cout << buffer << endl;
+
+    decodeResponse(buffer);
     free(buffer);
 
     return 1;
