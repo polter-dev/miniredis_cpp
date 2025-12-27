@@ -203,6 +203,7 @@ std::vector <string> decodeClient(char* encoded){
 
 int runCommands(int fd){
     int x = 1;
+    int val;
     int size = 1024;
     char buffer[size];
 
@@ -211,26 +212,41 @@ int runCommands(int fd){
     if (!x) return 0;
 
     buffer[totalSize] = '\0';
-    cout << buffer << endl;
+    clientBuffer[fd] += buffer;
 
-    std::vector<string> words = decodeClient(buffer);
-    if (words.empty()) return sendSimpleError(fd, "ERR empty command");
+    bool processedAny = false;
+    
+    while(1) {
+        val = findCompleteMessage(clientBuffer[fd]);
+        if (val == -1)
+            break;
 
-    if (words[0] == "PING"){
-        x = simpleStringResponse(fd, "PONG");
-    } else if (words[0] == "ECHO"){
-        x = sendBulkString(fd, words[1].c_str());
-    } else if (words[0] == "QUIT"){
-        x = 0;
-    } else if (words[0] == "SET"){
-        storeSET(words[1], words[2]);
-        x = simpleStringResponse(fd, "OK");
-    } else if (words[0] == "GET"){
-        grabGET(words[1], fd);
-    } else {
-        x = sendSimpleError(fd, "ERR unknown command");
+        cout << clientBuffer[fd] << endl;
+        
+        std::vector<string> words = decodeClient((char*)clientBuffer[fd].c_str());
+        if (words.empty()) return sendSimpleError(fd, "ERR empty command");
+
+        if (words[0] == "PING"){
+            x = simpleStringResponse(fd, "PONG");
+        } else if (words[0] == "ECHO"){
+            x = sendBulkString(fd, words[1].c_str());
+        } else if (words[0] == "QUIT"){
+            x = 0;
+        } else if (words[0] == "SET"){
+            storeSET(words[1], words[2]);
+            x = simpleStringResponse(fd, "OK");
+        } else if (words[0] == "GET"){
+            grabGET(words[1], fd);
+        } else {
+            x = sendSimpleError(fd, "ERR unknown command");
+        }
+        clientBuffer[fd].erase(0, val);
+        processedAny = true;
     }
-
+    
+    if (!processedAny)
+        return -2;
+    
     return x;
 }
 
@@ -244,7 +260,10 @@ void runPolling(std::vector<pollfd> &fdArr, int fd, sockaddr_in &serverSocket){
                         fdArr.push_back(initPoll(newFD));
                     } else {
                         int val = runCommands(fdArr[i].fd);
-                        if (!val || val == -1){
+                        if (val == -2){
+                            continue;
+                        } else if (!val || val == -1){
+                            clientBuffer.erase(fdArr[i].fd);
                             close(fdArr[i].fd);
                             fdArr.erase(fdArr.begin() + i);
                             i--;
