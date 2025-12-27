@@ -20,6 +20,8 @@ using namespace std;
 std::unordered_map<std::string, std::string> store;
 std::mutex storeMutex;
 
+std::unordered_map<int, std::string> clientBuffer;
+
 /*
 This program is fully developed and created by: Marcus Ruth 
 https://www.github.com/polter-dev/miniredis_cpp
@@ -148,6 +150,33 @@ void grabGET(string access, int fd) {
     }
 }
 
+int findCompleteMessage(string &buffer){
+    if(buffer.find("\r\n") == std::string::npos){
+        return -1;
+    }
+    int index = buffer.find('\r');
+    string stringSize = buffer.substr(1, index-1);
+    int size = stoi(stringSize);
+
+    index = index + 2; 
+
+    for (int i = 0; i < size; i++){
+        if(buffer.find("\r\n", index) == std::string::npos){
+            return -1;
+        }
+        int cmpIdx = buffer.find('\r', index);
+        string tempSize = buffer.substr(index+1, cmpIdx - index - 1);
+        int wordSize = stoi(tempSize);
+        
+        if (buffer.size() < cmpIdx + 2 + wordSize + 2){
+            return -1;
+        }
+        
+        index = cmpIdx + 2 + wordSize + 2;
+    }
+    return index;
+}
+
 std::vector <string> decodeClient(char* encoded){
     std::vector<string> incoming;
     int posi = 0;
@@ -205,7 +234,7 @@ int runCommands(int fd){
     return x;
 }
 
-    void runPolling(std::vector<pollfd> &fdArr, int fd, sockaddr_in &serverSocket){
+void runPolling(std::vector<pollfd> &fdArr, int fd, sockaddr_in &serverSocket){
         while(1){
             poll(fdArr.data(), fdArr.size(), -1);
             for (int i = 0; i < fdArr.size(); i++) {
@@ -226,19 +255,19 @@ int runCommands(int fd){
         }
     }
 
-    int main(){
-        int fd = grabSocket();
-        struct sockaddr_in serverSocket; initServerSocket(&serverSocket);
-        bindSock(fd, &serverSocket);
-        listenSocket(fd);
+int main(){
+    int fd = grabSocket();
+    struct sockaddr_in serverSocket; initServerSocket(&serverSocket);
+    bindSock(fd, &serverSocket);
+    listenSocket(fd);
 
 
-        //creates a dynamic system of fd
-        std::vector<pollfd> fdArr;
-        fdArr.push_back(initPoll(fd));
+    //creates a dynamic system of fd
+    std::vector<pollfd> fdArr;
+    fdArr.push_back(initPoll(fd));
         
-        runPolling(fdArr, fd, serverSocket);
+    runPolling(fdArr, fd, serverSocket);
 
-        close(fd);
-        return 0;
+    close(fd);
+    return 0;
 }
