@@ -14,14 +14,28 @@ using namespace std;
 
 //data structure import && creation
 #include <unordered_map>
-#include <mutex>
+
+#define INITSIZE 4
 
 //create a globally accessed map (not thread based)for all clients to access
 std::unordered_map<std::string, std::string> store;
-std::mutex storeMutex;
+std::mutex tableMutex;
 
 std::unordered_map<int, std::string> clientBuffer;
 
+typedef struct HashEntry {
+    string key;
+    string val;
+    struct HashEntry *next;
+} HashEntry;
+
+typedef struct HashTable {
+    HashEntry **bucket;
+    int size;
+    int entryCount;
+} HashTable;
+
+HashTable *table;
 /*
 This program is fully developed and created by: Marcus Ruth 
 https://www.github.com/polter-dev/miniredis_cpp
@@ -67,6 +81,78 @@ void listenSocket(int fd){
     }
 }
 
+HashTable* initHashTable(){
+    HashTable *table = (HashTable*)malloc(sizeof(HashTable));
+
+    table->size = INITSIZE;
+    table->bucket = (HashEntry**)malloc(sizeof(HashEntry*) * INITSIZE);
+
+    for (int i = 0; i < INITSIZE; i++)
+        table->bucket[i] = NULL;
+
+    return table;
+} 
+
+unsigned long hashFunction(const string &key) {
+
+    int size = key.length();
+    unsigned long hash = 5381; // djb2 starting val
+    for (int i = 0; i < size; i++) 
+        hash = (hash * 33) + key[i];
+    
+    return hash;
+    
+}
+
+HashEntry *createHashNode(string key, string val){
+    HashEntry *node = (HashEntry*)malloc(sizeof(HashEntry));
+
+    node->next = NULL;
+    node ->key = key;
+    node->val = val;
+
+    return node;
+}
+
+HashEntry* checkDupes(HashTable* table, string key, unsigned long idx){
+    HashEntry *walker = table->bucket[idx];
+
+    while (walker){
+        if(walker->key == key)
+            return walker;
+        walker = walker->next;
+        }
+
+    return NULL;
+}
+
+HashEntry *lookupHash(HashTable *table, string key){
+    unsigned long idx = hashFunction(key) % table->size;
+    HashEntry *walker = table->bucket[idx];
+
+    while (walker){
+        if (walker->key == key)
+            return walker;
+        walker = walker->next;
+    }
+    return NULL;
+}
+
+void insertHash(HashTable *table, string key, string value){
+    unsigned long idx = hashFunction(key) % table->size;
+    HashEntry* duplicate = checkDupes(table, key, idx);
+
+    if (!duplicate){
+        HashEntry *newNode = createHashNode(key, value);
+
+        newNode->next = table->bucket[idx];
+        table->bucket[idx] = newNode;
+        table->entryCount++;
+    } else {
+        duplicate->val = value;
+    }
+}
+
 int acceptSocket(int fd, struct sockaddr_in *clientAddr){
     socklen_t num =sizeof(*clientAddr);
     int res = accept(fd, (struct sockaddr *)clientAddr, &num);
@@ -98,9 +184,7 @@ int checkSize(int size){
 }
 
 void storeSET(string wordOne, string wordTwo){
-    storeMutex.lock();
-    store[wordOne] = wordTwo;
-    storeMutex.unlock();
+    insertHash(table, wordOne, wordTwo);
 }
 
 int simpleStringResponse(int fd, const char *word){
@@ -137,17 +221,12 @@ int sendSimpleError(int fd, const char *error){
     return sendMessage(fd, response.c_str(), response.length());
 }
 
-void grabGET(string access, int fd) {
-    storeMutex.lock();
-    if (store.find(access) == store.end()){
-        storeMutex.unlock();
-        sendNull(fd);
-        return;
-    } else{
-    string send = store[access];
-    storeMutex.unlock();
-    sendBulkString(fd, send.c_str());
-    }
+int grabGET(string key, int fd){
+    HashEntry *entry = lookupHash(table, key);
+    if (!entry)
+        return sendNull(fd);
+    else
+        return sendBulkString(fd, entry->val.c_str());
 }
 
 int findCompleteMessage(string &buffer){
@@ -236,7 +315,7 @@ int runCommands(int fd){
             storeSET(words[1], words[2]);
             x = simpleStringResponse(fd, "OK");
         } else if (words[0] == "GET"){
-            grabGET(words[1], fd);
+            x = grabGET(words[1], fd);
         } else {
             x = sendSimpleError(fd, "ERR unknown command");
         }
@@ -250,6 +329,7 @@ int runCommands(int fd){
     return x;
 }
 
+//this function looks horrible i know
 void runPolling(std::vector<pollfd> &fdArr, int fd, sockaddr_in &serverSocket){
         while(1){
             poll(fdArr.data(), fdArr.size(), -1);
@@ -280,6 +360,7 @@ int main(){
     bindSock(fd, &serverSocket);
     listenSocket(fd);
 
+    table = initHashTable();
 
     //creates a dynamic system of fd
     std::vector<pollfd> fdArr;
